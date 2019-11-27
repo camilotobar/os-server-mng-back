@@ -2,10 +2,13 @@ package com.os.project.services;
 
 import com.os.project.dto.PerformanceDTO;
 import com.os.project.dto.ProcessDTO;
+import com.os.project.dto.ProcessDTOWin;
+
 import org.springframework.stereotype.Service;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 
 @Service
 public class PerformanceService {
@@ -104,13 +107,94 @@ public class PerformanceService {
     }
 
     public PerformanceDTO killWindows(String pid) {
-        // TO-DO
+    	try {
+    		String[] command = {"powershell.exe", "/C", "kill " + pid};
+            ProcessBuilder probuilder = new ProcessBuilder( command );
+            Process p = probuilder.start();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         return executePowershell();
     }
 
     public PerformanceDTO executePowershell(){
-        return null;
-    }
+        PerformanceDTO performance = new PerformanceDTO();
+        performance.setProcesseswin(new ArrayList<>());
+        try {
+            String[] command = {"powershell.exe", "/C", "Get-Process | Select-Object id, name, handles, npm, pm, ws, vm, si, cpu"};
+            ProcessBuilder probuilder = new ProcessBuilder( command );
+            
+            Process process = probuilder.start();
+            
+            //Read out dir output
+            InputStreamReader isr = new InputStreamReader(process.getInputStream());
+            BufferedReader br = new BufferedReader(isr);
+            String line;
+            String idActual = "-1";
+            HashMap<String, ProcessDTOWin> map = new HashMap<>();
+            while ((line = br.readLine()) != null) {
+            	String[] arr = line.trim().replaceAll("\\s+", " ").split(" ");
+            	if (arr.length>1) {
+            		if (arr[0].equals("Id")) {
+            			idActual = arr[2];
+            			ProcessDTOWin p = new ProcessDTOWin();
+            			p.setPid(idActual);
+            			map.put(idActual, p);
+            		}
+            		ProcessDTOWin p = map.get(idActual);
+            		if (p!=null) {
+            			switch (arr[0]) {
+    					case "Name":
+    						p.setName(arr[2]);
+    						break;
+    					case "Handles":
+    						p.setHandles(arr[2]);
+    						break;
+    					case "NPM":
+    						p.setNpm(arr[2]);
+    						break;
+    					case "PM":
+    						p.setPm(arr[2]);
+    						break;
+    					case "WS":
+    						p.setWs(arr[2]);
+    						break;
+    					case "VM":
+    						p.setVm(arr[2]);
+    						break;
+    					case "SI":
+    						p.setSi(arr[2]);
+    						break;
+    					case "CPU":
+    						if (arr.length==2) {
+    							p.setCpu("No data");
+    						}
+    						else {
+    							p.setCpu(arr[2]);
+    						}
+    						break;
+    					default:
+    						break;
+    					}
+            		}
+            	}
+            }
+            for (ProcessDTOWin p : map.values()) {
+				performance.getProcesseswin().add(p);
+			}
+            //Wait to get exit value
+            try {
+                int exitValue = process.waitFor();
+                System.out.println("\n\nExit Value is " + exitValue);
+            } catch (InterruptedException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
 
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    	return performance;
+    }
 
 }
